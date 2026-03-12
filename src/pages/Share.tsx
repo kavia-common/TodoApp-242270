@@ -31,7 +31,11 @@ const SharePage = () => {
 
   useEffect(() => {
     const handleTaskData = (decodedTask: string) => {
-      const task: Task = { ...(JSON.parse(decodedTask) as Task), id: generateUUID() };
+      const parsed = JSON.parse(decodedTask) as Task;
+      if (parsed.recurrence?.until) {
+        parsed.recurrence.until = new Date(parsed.recurrence.until);
+      }
+      const task: Task = { ...parsed, id: generateUUID() };
 
       if (
         !isHexColor(task.color) ||

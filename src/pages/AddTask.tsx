@@ -1,9 +1,9 @@
-import { Category, Task } from "../types/user";
+import type { Category, Task, TaskRecurrence } from "../types/user";
 import { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { AddTaskButton, Container, StyledInput } from "../styles";
 import { AddTaskRounded, CancelRounded } from "@mui/icons-material";
-import { IconButton, InputAdornment, Tooltip } from "@mui/material";
+import { IconButton, InputAdornment, MenuItem, Tooltip } from "@mui/material";
 import { DESCRIPTION_MAX_LENGTH, TASK_NAME_MAX_LENGTH } from "../constants";
 import { ColorPicker, TopBar, CustomEmojiPicker } from "../components";
 import { UserContext } from "../contexts/UserContext";
@@ -14,6 +14,7 @@ import { ColorPalette } from "../theme/themeConfig";
 import InputThemeProvider from "../contexts/InputThemeProvider";
 import { CategorySelect } from "../components/CategorySelect";
 import { useToasterStore } from "react-hot-toast";
+import { normalizeRecurrence } from "../utils/recurrenceUtils";
 
 const AddTask = () => {
   const { user, setUser } = useContext(UserContext);
@@ -27,6 +28,26 @@ const AddTask = () => {
     "sessionStorage",
   );
   const [deadline, setDeadline] = useStorageState<string>("", "deadline", "sessionStorage");
+
+  const [recurrenceEnabled, setRecurrenceEnabled] = useStorageState<boolean>(
+    false,
+    "recurrenceEnabled",
+    "sessionStorage",
+  );
+  const [recurrenceFrequency, setRecurrenceFrequency] = useStorageState<
+    TaskRecurrence["frequency"]
+  >("daily", "recurrenceFrequency", "sessionStorage");
+  const [recurrenceInterval, setRecurrenceInterval] = useStorageState<number>(
+    1,
+    "recurrenceInterval",
+    "sessionStorage",
+  );
+  const [recurrenceUntil, setRecurrenceUntil] = useStorageState<string>(
+    "",
+    "recurrenceUntil",
+    "sessionStorage",
+  );
+
   const [nameError, setNameError] = useState<string>("");
   const [descriptionError, setDescriptionError] = useState<string>("");
   const [selectedCategories, setSelectedCategories] = useStorageState<Category[]>(
@@ -100,6 +121,14 @@ const AddTask = () => {
       return; // Do not add the task if the name or description exceeds the maximum length
     }
 
+    const recurrence: TaskRecurrence | undefined = recurrenceEnabled
+      ? normalizeRecurrence({
+          frequency: recurrenceFrequency,
+          interval: Number(recurrenceInterval) || 1,
+          until: recurrenceUntil !== "" ? new Date(recurrenceUntil) : undefined,
+        })
+      : undefined;
+
     const newTask: Task = {
       id: generateUUID(),
       done: false,
@@ -111,6 +140,8 @@ const AddTask = () => {
       date: new Date(),
       deadline: deadline !== "" ? new Date(deadline) : undefined,
       category: selectedCategories ? selectedCategories : [],
+      recurrence: recurrenceEnabled ? recurrence : undefined,
+      recurrenceState: recurrenceEnabled ? { lastGeneratedYmd: undefined } : undefined,
     };
 
     setUser((prevUser) => ({
@@ -129,7 +160,18 @@ const AddTask = () => {
       },
     );
 
-    const itemsToRemove = ["name", "color", "description", "emoji", "deadline", "categories"];
+    const itemsToRemove = [
+      "name",
+      "color",
+      "description",
+      "emoji",
+      "deadline",
+      "categories",
+      "recurrenceEnabled",
+      "recurrenceFrequency",
+      "recurrenceInterval",
+      "recurrenceUntil",
+    ];
     itemsToRemove.map((item) => sessionStorage.removeItem(item));
   };
 
@@ -212,6 +254,72 @@ const AddTask = () => {
             }}
           />
 
+          <div style={{ marginTop: "6px" }}>
+            <StyledInput
+              select
+              label="Recurring"
+              name="recurrenceEnabled"
+              value={recurrenceEnabled ? "yes" : "no"}
+              onChange={(e) => setRecurrenceEnabled(e.target.value === "yes")}
+              helperText="Create a task that repeats on a schedule."
+            >
+              <MenuItem value="no">No</MenuItem>
+              <MenuItem value="yes">Yes</MenuItem>
+            </StyledInput>
+
+            {recurrenceEnabled && (
+              <>
+                <StyledInput
+                  select
+                  label="Repeat frequency"
+                  name="recurrenceFrequency"
+                  value={recurrenceFrequency}
+                  onChange={(e) =>
+                    setRecurrenceFrequency(e.target.value as TaskRecurrence["frequency"])
+                  }
+                >
+                  <MenuItem value="daily">Daily</MenuItem>
+                  <MenuItem value="weekly">Weekly</MenuItem>
+                  <MenuItem value="monthly">Monthly</MenuItem>
+                </StyledInput>
+
+                <StyledInput
+                  label="Repeat every"
+                  name="recurrenceInterval"
+                  type="number"
+                  value={recurrenceInterval}
+                  onChange={(e) => setRecurrenceInterval(Math.max(1, Number(e.target.value) || 1))}
+                  slotProps={{
+                    input: { inputProps: { min: 1, step: 1 } },
+                  }}
+                  helperText="Interval (e.g., every 2 weeks)."
+                />
+
+                <StyledInput
+                  label="Repeat until (optional)"
+                  name="recurrenceUntil"
+                  type="date"
+                  value={recurrenceUntil}
+                  onChange={(e) => setRecurrenceUntil(e.target.value)}
+                  slotProps={{
+                    inputLabel: { shrink: true },
+                    input: {
+                      startAdornment: recurrenceUntil ? (
+                        <InputAdornment position="start">
+                          <Tooltip title="Clear">
+                            <IconButton color="error" onClick={() => setRecurrenceUntil("")}>
+                              <CancelRounded />
+                            </IconButton>
+                          </Tooltip>
+                        </InputAdornment>
+                      ) : undefined,
+                    },
+                  }}
+                />
+              </>
+            )}
+          </div>
+
           {user.settings.enableCategories !== undefined && user.settings.enableCategories && (
             <div style={{ marginBottom: "14px" }}>
               <br />
@@ -234,9 +342,7 @@ const AddTask = () => {
         />
         <AddTaskButton
           onClick={handleAddTask}
-          disabled={
-            name.length > TASK_NAME_MAX_LENGTH || description.length > DESCRIPTION_MAX_LENGTH
-          }
+          disabled={name.length > TASK_NAME_MAX_LENGTH || description.length > DESCRIPTION_MAX_LENGTH}
         >
           Create Task
         </AddTaskButton>

@@ -28,3 +28,4 @@ dev-dist
 
 # Vite cache
 /.cache
+.file_activity_report.json

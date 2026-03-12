@@ -23,6 +23,7 @@ import {
   DragHandle,
 } from "./tasks.styled";
 import { calculateDateDifference, formatDate, getFontColor, systemInfo } from "../../utils";
+import { formatRecurrenceLabel } from "../../utils/recurrenceUtils";
 import { RenderTaskDescription } from "./RenderTaskDescription";
 import { CategoryBadge } from "..";
 import { UserContext } from "../../contexts/UserContext";
@@ -188,6 +189,14 @@ export const TaskItem = memo(
               enableMoreButton={!!actions}
             />
           </TaskDescription>
+
+          {task.recurrence && (
+            <Tooltip title={formatRecurrenceLabel(task.recurrence) || ""} placement="bottom-start">
+              <TimeLeft done={task.done} translate="yes">
+                {formatRecurrenceLabel(task.recurrence)}
+              </TimeLeft>
+            </Tooltip>
+          )}
 
           {task.deadline && (
             <Tooltip

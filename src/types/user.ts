@@ -35,6 +35,48 @@ export interface User {
 }
 
 /**
+ * Recurrence frequency options supported by the app.
+ */
+export type RecurrenceFrequency = "daily" | "weekly" | "monthly";
+
+/**
+ * Represents recurrence rules for a task.
+ *
+ * Note: we intentionally keep this structure simple and offline-friendly.
+ */
+export interface TaskRecurrence {
+  frequency: RecurrenceFrequency;
+  /**
+   * Repeat every N frequency units (e.g., every 2 weeks).
+   */
+  interval: number;
+  /**
+   * For weekly recurrence: which days the task repeats on (0=Sunday ... 6=Saturday).
+   * If omitted, defaults to the task creation day-of-week.
+   */
+  daysOfWeek?: number[];
+  /**
+   * For monthly recurrence: day of month (1-31).
+   * If omitted, defaults to the task creation day-of-month.
+   */
+  dayOfMonth?: number;
+  /**
+   * Optional end date for recurrence (inclusive). If omitted, repeats forever.
+   */
+  until?: Date;
+}
+
+/**
+ * Per-task recurrence runtime state.
+ */
+export interface TaskRecurrenceState {
+  /**
+   * The last date (YYYY-MM-DD) for which we spawned/completed a recurrence cycle.
+   */
+  lastGeneratedYmd?: string;
+}
+
+/**
  * Represents a task in the application.
  */
 export interface Task {
@@ -57,6 +99,14 @@ export interface Task {
    * Optional numeric position for drag-and-drop (for p2p sync)
    */
   position?: number;
+  /**
+   * Optional recurrence configuration. If present, this task is considered recurring.
+   */
+  recurrence?: TaskRecurrence;
+  /**
+   * Recurrence bookkeeping. Used to avoid spawning multiple occurrences for the same schedule window.
+   */
+  recurrenceState?: TaskRecurrenceState;
 }
 
 /**

@@ -8,6 +8,7 @@ import { Emoji } from "emoji-picker-react";
 import { useContext, useEffect } from "react";
 import { UserContext } from "../contexts/UserContext";
 import { getColorName } from "ntc-ts";
+import { formatRecurrenceLabel } from "../utils/recurrenceUtils";
 
 const TaskDetails = () => {
   const { user } = useContext(UserContext);
@@ -88,6 +89,12 @@ const TaskDetails = () => {
               <TableRow>
                 <TableHeader>Task deadline:</TableHeader>
                 <TableData>{dateFormatter.format(new Date(task.deadline))}</TableData>
+              </TableRow>
+            )}
+            {task?.recurrence && (
+              <TableRow>
+                <TableHeader>Recurring:</TableHeader>
+                <TableData>{formatRecurrenceLabel(task.recurrence)}</TableData>
               </TableRow>
             )}
             <TableRow>

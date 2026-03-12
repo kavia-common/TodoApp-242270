@@ -238,6 +238,7 @@ export function decompressSyncData(compressed: string): SyncData | null {
       if (task.lastSave) task.lastSave = new Date(task.lastSave);
       if (task.date) task.date = new Date(task.date);
       if (task.deadline) task.deadline = new Date(task.deadline);
+      if (task.recurrence?.until) task.recurrence.until = new Date(task.recurrence.until);
     });
 
     return data;
@@ -296,9 +297,7 @@ export function mergeSyncData(
 
   // remove deleted tasks and categories from merged lists
   const finalTasks = mergedTasks.filter((task) => !mergedDeletedTasks.includes(task.id));
-  const finalCategories = mergedCategories.filter(
-    (cat) => !mergedDeletedCategories.includes(cat.id),
-  );
+  const finalCategories = mergedCategories.filter((cat) => !mergedDeletedCategories.includes(cat.id));
 
   // merge favorite categories
   const finalFavoriteCategories = mergeFavoriteCategories(

@@ -6,6 +6,7 @@ import {
   DialogContent,
   IconButton,
   InputAdornment,
+  MenuItem,
   TextField,
   TextFieldProps,
   Tooltip,
@@ -15,11 +16,12 @@ import { ColorPicker, CustomDialogTitle, CustomEmojiPicker } from "..";
 import { DESCRIPTION_MAX_LENGTH, TASK_NAME_MAX_LENGTH } from "../../constants";
 import { UserContext } from "../../contexts/UserContext";
 import { DialogBtn } from "../../styles";
-import { Category, Task } from "../../types/user";
+import type { Category, Task, TaskRecurrence } from "../../types/user";
 import { formatDate, showToast, timeAgo } from "../../utils";
 import { useTheme } from "@emotion/react";
 import { ColorPalette } from "../../theme/themeConfig";
 import { CategorySelect } from "../CategorySelect";
+import { normalizeRecurrence } from "../../utils/recurrenceUtils";
 
 const DEFAULT_EDIT_TASK_SUBTITLE = "Edit the details of the task.";
 
@@ -37,6 +39,13 @@ export const EditTask = ({ open, task, onClose }: EditTaskProps) => {
   const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
   const [editLastSaveLabel, setEditLastSaveLabel] = useState<string>(DEFAULT_EDIT_TASK_SUBTITLE);
 
+  const [recurrenceEnabled, setRecurrenceEnabled] = useState<boolean>(false);
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<TaskRecurrence["frequency"]>(
+    "daily",
+  );
+  const [recurrenceInterval, setRecurrenceInterval] = useState<number>(1);
+  const [recurrenceUntil, setRecurrenceUntil] = useState<string>("");
+
   const theme = useTheme();
 
   const nameError = useMemo(
@@ -44,8 +53,7 @@ export const EditTask = ({ open, task, onClose }: EditTaskProps) => {
     [editedTask?.name],
   );
   const descriptionError = useMemo(
-    () =>
-      editedTask?.description ? editedTask.description.length > DESCRIPTION_MAX_LENGTH : undefined,
+    () => (editedTask?.description ? editedTask.description.length > DESCRIPTION_MAX_LENGTH : undefined),
     [editedTask?.description],
   );
 
@@ -61,6 +69,14 @@ export const EditTask = ({ open, task, onClose }: EditTaskProps) => {
   useEffect(() => {
     setEditedTask(task);
     setSelectedCategories(task?.category as Category[]);
+
+    setRecurrenceEnabled(Boolean(task?.recurrence));
+    setRecurrenceFrequency(task?.recurrence?.frequency || "daily");
+    setRecurrenceInterval(task?.recurrence?.interval || 1);
+    setRecurrenceUntil(
+      task?.recurrence?.until ? new Date(task.recurrence.until).toISOString().slice(0, 10) : "",
+    );
+
     if (task?.lastSave) {
       setEditLastSaveLabel(
         `Last edited ${timeAgo(new Date(task.lastSave))} • ${formatDate(new Date(task.lastSave))}`,
@@ -84,20 +100,30 @@ export const EditTask = ({ open, task, onClose }: EditTaskProps) => {
   const handleSave = () => {
     document.body.style.overflow = "auto";
     if (editedTask && !nameError && !descriptionError) {
-      const updatedTasks = user.tasks.map((task) => {
-        if (task.id === editedTask.id) {
+      const recurrence: TaskRecurrence | undefined = recurrenceEnabled
+        ? normalizeRecurrence({
+            frequency: recurrenceFrequency,
+            interval: Number(recurrenceInterval) || 1,
+            until: recurrenceUntil !== "" ? new Date(recurrenceUntil) : undefined,
+          })
+        : undefined;
+
+      const updatedTasks = user.tasks.map((t) => {
+        if (t.id === editedTask.id) {
           return {
-            ...task,
+            ...t,
             name: editedTask.name,
             color: editedTask.color,
             emoji: editedTask.emoji || undefined,
             description: editedTask.description || undefined,
             deadline: editedTask.deadline || undefined,
             category: editedTask.category || undefined,
+            recurrence: recurrenceEnabled ? recurrence : undefined,
+            recurrenceState: recurrenceEnabled ? (t.recurrenceState || {}) : undefined,
             lastSave: new Date(),
           };
         }
-        return task;
+        return t;
       });
       setUser((prevUser) => ({
         ...prevUser,
@@ -249,6 +275,70 @@ export const EditTask = ({ open, task, onClose }: EditTaskProps) => {
           }}
         />
 
+        <StyledInput
+          select
+          label="Recurring"
+          name="recurrenceEnabled"
+          value={recurrenceEnabled ? "yes" : "no"}
+          onChange={(e) => setRecurrenceEnabled(e.target.value === "yes")}
+          helperText="Set a schedule to repeat this task."
+        >
+          <MenuItem value="no">No</MenuItem>
+          <MenuItem value="yes">Yes</MenuItem>
+        </StyledInput>
+
+        {recurrenceEnabled && (
+          <>
+            <StyledInput
+              select
+              label="Repeat frequency"
+              name="recurrenceFrequency"
+              value={recurrenceFrequency}
+              onChange={(e) =>
+                setRecurrenceFrequency(e.target.value as TaskRecurrence["frequency"])
+              }
+            >
+              <MenuItem value="daily">Daily</MenuItem>
+              <MenuItem value="weekly">Weekly</MenuItem>
+              <MenuItem value="monthly">Monthly</MenuItem>
+            </StyledInput>
+
+            <StyledInput
+              label="Repeat every"
+              name="recurrenceInterval"
+              type="number"
+              value={recurrenceInterval}
+              onChange={(e) => setRecurrenceInterval(Math.max(1, Number(e.target.value) || 1))}
+              slotProps={{
+                input: { inputProps: { min: 1, step: 1 } },
+              }}
+              helperText="Interval (e.g., every 2 weeks)."
+            />
+
+            <StyledInput
+              label="Repeat until (optional)"
+              name="recurrenceUntil"
+              type="date"
+              value={recurrenceUntil}
+              onChange={(e) => setRecurrenceUntil(e.target.value)}
+              slotProps={{
+                inputLabel: { shrink: true },
+                input: {
+                  startAdornment: recurrenceUntil ? (
+                    <InputAdornment position="start">
+                      <Tooltip title="Clear">
+                        <IconButton color="error" onClick={() => setRecurrenceUntil("")}>
+                          <CancelRounded />
+                        </IconButton>
+                      </Tooltip>
+                    </InputAdornment>
+                  ) : undefined,
+                },
+              }}
+            />
+          </>
+        )}
+
         {settings.enableCategories !== undefined && settings.enableCategories && (
           <CategorySelect
             fontColor={theme.darkmode ? ColorPalette.fontLight : ColorPalette.fontDark}
@@ -268,10 +358,10 @@ export const EditTask = ({ open, task, onClose }: EditTaskProps) => {
             width={"100%"}
             color={editedTask?.color || "#000000"}
             fontColor={theme.darkmode ? ColorPalette.fontLight : ColorPalette.fontDark}
-            onColorChange={(color) => {
+            onColorChange={(c) => {
               setEditedTask((prevTask) => ({
                 ...(prevTask as Task),
-                color: color,
+                color: c,
               }));
             }}
           />
